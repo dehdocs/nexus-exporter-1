@@ -3,7 +3,7 @@
 import os
 import json
 import time
-import base64
+from base64 import b64encode
 try:
     import urllib2
     from urlparse import urlparse
@@ -59,7 +59,9 @@ def parse():
 class NexusCollector(object):
     def __init__(self, target, user, password):
         self._target = target.rstrip("/")
-        self._auth = base64.standard_b64encode('%s:%s' % (user, password))
+        auth = (user+":"+password).encode('utf8')
+        self._auth = b64encode(auth).decode("ascii")
+
         self._info = {}
         self._data = {}
 
@@ -91,7 +93,7 @@ class NexusCollector(object):
             'Threads Used', value=i['threads'])
 
         i = self._info['system-filestores']
-        for fsname, details in i.iteritems():
+        for fsname, details in i.items():
             mount = self._mount_point(details['description'])
             fts = GaugeMetricFamily(
                 'nexus_filestore_total_space_bytes',
@@ -239,16 +241,13 @@ class NexusCollector(object):
         return description.split('(')[0].strip()
 
     def _request_data(self):
-        info_request = urllib2.Request(
-            "{0}/service/rest/atlas/system-information".format(
-                self._target))
-        info_request.add_header("Authorization", "Basic %s" % self._auth)
-        self._info = json.loads(urllib2.urlopen(info_request).read())
-
-        data_request = urllib2.Request("{0}/service/metrics/data".format(
-                self._target))
+        info_request = urllib2.Request("{0}/service/siesta/atlas/system-information".format(self._target))
+        info_request.add_header("Authorization", 'Basic %s' % self._auth)
+        self._info = json.loads(urllib2.urlopen(info_request).read().decode('utf-8'))
+        
+        data_request = urllib2.Request("{0}/service/metrics/data".format(self._target))
         data_request.add_header("Authorization", "Basic %s" % self._auth)
-        self._data = json.loads(urllib2.urlopen(data_request).read())
+        self._data = json.loads(urllib2.urlopen(data_request).read().decode('utf-8'))
 
 
 def fatal(msg):
